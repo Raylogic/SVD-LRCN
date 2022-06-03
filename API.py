@@ -6,13 +6,12 @@ import math
 import librosa
 
 from matplotlib import pyplot as plt
-from sklearn.utils import resample
 from tqdm import tqdm
-
-from Setup import zcr, rmse, rolloff, contrast, feat_g_lpcc, feat_g_plp, polly, flatness
 from Feature import AudioFeat
+from UNet import split_vocal
 
 # ======================================================================================================================
+
 # Replace a NaN value in the features
 def replace_nan(dataX):
 
@@ -39,9 +38,16 @@ def replace_nan(dataX):
 # ======================================================================================================================
 
 def get_vocals(mp3_path):
+
+    # SVS process
+    vocal_path = mp3_path.replace('.wav', '.unet.Vocal.wav')
+    if not os.path.isfile(vocal_path):
+        split_vocal(mp3_path)
+
     # Feature extraction
     feat_path = mp3_path.replace('audio', 'joblibs').replace('.mp3', '.joblib')
 
+    # If .joblib file doesn't exists, perform the extraction
     if not os.path.exists(feat_path):
         
         # Open .joblib file
@@ -56,15 +62,16 @@ def get_vocals(mp3_path):
         # Dump audio features in .joblib file
         jl.dump(dataX, feat_path)
 
-        # Load .joblib file
-        feat_data = jl.load(feat_path)
+    # Load .joblib file
+    feat_data = jl.load(feat_path)
 
-        # Replace None values
-        feat_data = np.vstack(feat_data)
-        feat_data = replace_nan(feat_data)
-        feat_data = np.nan_to_num(feat_data)
+    # Replace None values
+    feat_data = np.vstack(feat_data)
+    feat_data = replace_nan(feat_data)
+    feat_data = np.nan_to_num(feat_data)
 
 # ======================================================================================================================
+
 # Extract Jamendo song .lab file tags
 def jamendo_electrobyte_labtags(lab_path):
 
@@ -95,7 +102,8 @@ def jamendo_electrobyte_labtags(lab_path):
     return label_list
 
 # ======================================================================================================================
-# Extract the Jamendo song labels and features
+
+# Extract the Jamendo and Electrobyte song labels and features
 def jamendo_electrobyte_api(mp3_path):
 
     get_vocals(mp3_path)
@@ -117,6 +125,7 @@ def jamendo_electrobyte_api(mp3_path):
     return 0
 
 # ======================================================================================================================
+
 # Extract the labels and features from Jamendo Corpus dataset
 def jamendo_electrobyte(wav_dir):
 
@@ -130,12 +139,13 @@ def jamendo_electrobyte(wav_dir):
             mp3_path = os.path.join(root, name)
 
             # Run the API to extract the song features and labels 
-            if '.mp3' in mp3_path:
+            if '.mp3' in mp3_path and '.unet.Vocal' not in mp3_path:
                 jamendo_electrobyte_api(mp3_path)
 
     return 0
 
 # ======================================================================================================================
+
 # Main code
 if __name__ == '__main__':
     # jamendo_electrobyte('.\Datasets\Jamendo')

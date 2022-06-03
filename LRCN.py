@@ -62,6 +62,8 @@ def get_step_data(dataX, dataY, step, array_dim_num=3):
 # ========================================================================================================================================
 
 class LRCN_Model:
+
+    # Constructor
     def __init__(self, case, dataset_path, feature_list=None):
 
         # Case of use
@@ -85,6 +87,9 @@ class LRCN_Model:
         self.testX = AFE.specify_feature_list_index(self.testX, feature_list)
         self.validX = AFE.specify_feature_list_index(self.validX, feature_list)
 
+    # =========================================================================================================================
+
+    # Train LRCN and perform the sing/nosing classification
     def train_load(self, case, use_model='lrcn', load=True, scale_normal=True, step_size=20):
 
         # Call LRCN Model
@@ -101,6 +106,7 @@ class LRCN_Model:
         train_X, train_Y = get_step_data(self.trainX, self.trainY, step=step_size)
         valid_X, valid_Y = get_step_data(self.validX, self.validY, step=step_size)
         
+        # If model is loaded
         if load:
             model = load_model('models/%s.model' % use_model)
             model.load_weights('models/%s.weights' % use_model)
@@ -113,7 +119,7 @@ class LRCN_Model:
 
             # Fit trainging data into model history
             history = model.fit(train_X, train_Y,
-                                epochs=50, verbose=VERBOSE,  # 10000
+                                epochs=1000, verbose=VERBOSE,  # 10000
                                 shuffle=True,
                                 validation_data=(valid_X, valid_Y),
                                 callbacks=[checkpoint, TensorBoard(log_dir='logs'), ]) #early_stop
@@ -146,20 +152,20 @@ class LRCN_Model:
 
         # Predict the class from Valid set
         predict_Y = model.predict(valid_X)
-        predict_Y = numpy.argmax(predict_Y, axis=1)
+        predict_Y = numpy.where(predict_Y > 0.5, 1, 0)
 
         # Call Evaluator instance
         evaluator = Evaluator(predict_Y, valid_Y)
         
         # Get metrics from predicting valid set
-        accuracy, precision, recall, f1measure = evaluator.metrics()
+        accuracy, precision, recall, f1measure = evaluator.evaluate()
 
         # Return metrics
         return accuracy, precision, recall, f1measure
 
 # ========================================================================================================================================
 
-# Compare feature metrics across datasets
+# Compare features across datasets
 def compare_features(dataset_h5_path):
 
     # List of features to compare
@@ -170,7 +176,7 @@ def compare_features(dataset_h5_path):
         print('Used Feature:\t%s' % feature)
 
         # Train the LRCN with the feature
-        LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=[feature])
+        LRCN_Build = LRCN_Model('compare_features', dataset_h5_path, feature_list=[feature])
 
         # Extract the model metrics
         accuracy, precision, recall, f1measure = LRCN_Build.train_load('lrcn', 'compare_features', load=False)
@@ -184,7 +190,7 @@ def compare_features(dataset_h5_path):
         # Write the metrics in the CSV file
         writer.writerow([feature, accuracy, precision, recall, f1measure])
 
-        # Open a CSV file
+        # Close the CSV file
         res_csv.close()
 
     return 0
@@ -208,7 +214,7 @@ def select_features(dataset_h5_path):
     combine_features = [feature_list[0]]
 
     # Train the LRCN with the initial feature
-    LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=combine_features)
+    LRCN_Build = LRCN_Model('combine_features', dataset_h5_path, feature_list=combine_features)
 
     # Extract the model metrics
     accuracy, precision, recall, curr_f1measure = LRCN_Build.train_load('lrcn', 'combine_features', load=False)
@@ -225,7 +231,7 @@ def select_features(dataset_h5_path):
         cont += 1
 
         # Train the LRCN with the added feature
-        LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=combine_features + [item])
+        LRCN_Build = LRCN_Model('combine_features', dataset_h5_path, feature_list=combine_features + [item])
 
         # Extract the model metrics
         accuracy, precision, recall, added_f1measure = LRCN_Build.train_load('lrcn', 'combine_features', load=False)
@@ -278,7 +284,7 @@ def best_features_window_size(dataset_dir):
             dataset_h5_path = os.path.join(dataset_dir, h5_file_item)
 
             # Train the LRCN with the current dataset
-            LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=feat_list)
+            LRCN_Build = LRCN_Model('best_features', dataset_h5_path, feature_list=feat_list)
 
             # Extract the model metrics
             accuracy, precision, recall, f1measure = LRCN_Build.train_load('lrcn', 'best_features', load=False)
@@ -312,7 +318,7 @@ def LRCN_Standard(dataset_h5_path):
     feat_list = ['feat_spec_all', 'feat_mfcc', 'feat_MFCC_delta', 'feat_MFCC_delta_delta', 'feat_lpc', 'feat_plp']
 
     # Train the LRCN with the current dataset
-    LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=feat_list)
+    LRCN_Build = LRCN_Model('standard', dataset_h5_path, feature_list=feat_list)
 
     # Extract the model metrics
     accuracy, precision, recall, f1measure = LRCN_Build.train_load('lrcn', 'standard', load=False)
@@ -339,7 +345,7 @@ def LRCN_Window_Size(dataset_h5_path, st_size):
     feat_list = ['feat_spec_all', 'feat_mfcc', 'feat_MFCC_delta', 'feat_MFCC_delta_delta', 'feat_lpc', 'feat_plp']
 
     # Train the LRCN with the current dataset
-    LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=feat_list)
+    LRCN_Build = LRCN_Model('window_size', dataset_h5_path, feature_list=feat_list)
 
     # Extract the model metrics
     accuracy, precision, recall, f1measure = LRCN_Build.train_load('lrcn', 'window_size', load=False, step_size=st_size)
@@ -366,7 +372,7 @@ def LRCN_Datasets(dataset_h5_path):
     feat_list = ['feat_spec_all', 'feat_mfcc', 'feat_MFCC_delta', 'feat_MFCC_delta_delta', 'feat_lpc', 'feat_plp']
 
     # Train the LRCN with the current dataset
-    LRCN_Build = LRCN_Model(dataset_h5_path, feature_list=feat_list)
+    LRCN_Build = LRCN_Model('datasets', dataset_h5_path, feature_list=feat_list)
 
     # Extract the model metrics
     accuracy, precision, recall, f1measure = LRCN_Build.train_load('lrcn', 'datasets', load=False)

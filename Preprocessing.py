@@ -8,9 +8,10 @@ from pydub import AudioSegment
 
 from Setup import mirik
 from Feature import AudioFeat
+from UNet import split_vocal
 
 
-# Process MIR-1K tag file
+# Process MIR1K tag file
 def dataset_mir1k():
 
     # Access the song labels path
@@ -37,6 +38,8 @@ def dataset_mir1k():
 
         # Label value (Sing/No sing)
         label = None
+
+        print(tag_count)
 
         # Explore each tag in the list
         for line_item in tag_count:
@@ -92,6 +95,8 @@ def dataset_mir1k():
 
     return 0
 
+# ===================================================================================================================================
+
 class AudioPreprocess:
 
     # Load Dataset from H5File
@@ -115,11 +120,18 @@ class AudioPreprocess:
         return trainX, trainY, testX, testY, validX, validY
 
     # ======================================================================================================================
-
+    
     # Write Dataset to H5File
-    def write_h5file(self, data_set_dir, data_ext_str):
-        # Convert the Joblib into H5 File
-        h5name = os.path.join(data_set_dir, data_ext_str.replace('.joblib', '.h5'))
+    def write_h5file(self, data_set_dir, data_ext_str, vocal_only):
+
+        # Convert the Joblib into H5 File, regardless is the original or SVS Vocal File
+        if vocal_only:
+            h5name = os.path.join(data_set_dir, data_ext_str.replace('.joblib', '_vocal.h5'))
+            data_ext_str = '.unet.Vocal' + data_ext_str
+        else:
+            h5name = os.path.join(data_set_dir, data_ext_str.replace('.joblib', '_normal.h5'))
+        
+        # Finish if H5 File already exists
         if os.path.isfile(h5name):
             return
 
@@ -135,11 +147,16 @@ class AudioPreprocess:
         for root, dirs, names in os.walk(data_set_dir):
 
             # Explore each song
-            for name_item in names:
-                if data_ext_str in name_item:
+            for item in names:
+                if data_ext_str in item:
+
+                    # Skip if SVS Vocal File already exists
+                    if not vocal_only:
+                        if '.unet.Vocal' in item:
+                            continue
 
                     # Get the song path
-                    file_path = os.path.join(root, name_item)
+                    file_path = os.path.join(root, item)
 
                     # Load the song file
                     data_lable_dict = joblib.load(file_path)
@@ -147,8 +164,8 @@ class AudioPreprocess:
                     # Split the song data and labels
                     data = data_lable_dict['data']
                     label = data_lable_dict['lable']
-                    print(file_path)
 
+                    # Generate train, valid and test set
                     if 'train' in file_path:
                         trainX.extend(data)
                         trainY.extend(label)
@@ -182,6 +199,91 @@ class AudioPreprocess:
 
         # Close the file
         file.close()
+        return 0
+    
+    # ======================================================================================================================
+    
+    # View the label distribution of a dataset
+    def view_label_resolution(self, data_dir):
+
+        # Dictionary of sing/nosing labels
+        sing_nosing_resolution = {'sing': [], 'nosing': []}
+
+        # Path to labels on the dataset
+        labels_dir = '%s/tags' % data_dir
+
+        # Counters
+        sing_num = 0
+        nosing_num = 0
+        sing_total = 0
+        nosing_total = 0
+
+        # Traverse each .lab file
+        for item in os.listdir(labels_dir):
+            
+            # Get .lab file path
+            lab_path = os.path.join(labels_dir, item)
+
+            # Open song .lab file
+            with open(lab_path, 'r') as lab:
+                labels = lab.readlines()
+            
+            # Read each label
+            for line in labels:
+
+                # Store the label values in a list
+                start_end = line.split(' ')
+
+                # Assuming the label has 3 values, extract them
+                if len(start_end) == 3:
+                    
+                    # Start time, end time, tag value
+                    start = float(start_end[0])
+                    end = float(start_end[1])
+                    tag = start_end[2].strip('\n')
+
+                    # Append label values into dictionary of sing/nosing labels
+                    sing_nosing_resolution[tag].append(end - start)
+
+                    # If label is sing, add one to total counter and sing counter
+                    # If label is nosing, add one to total counter and nosingsing counter
+                    if tag == 'sing':
+                        sing_total += 1
+                        if (end - start) < 0.3:
+                            sing_num += 1
+                    elif tag == 'nosing':
+                        nosing_total += 1
+                        if (end - start) < 0.3:
+                            nosing_num += 1
+
+        # Plot sing/nosing distribution
+        plt.figure()
+        ax0 = plt.subplot(211)
+        plt.gca().set_title('sing |<0.3s %d of %d' % (sing_num, sing_total))
+        plt.axis([0, 0.5, 0, 100])
+        plt.hist(sing_nosing_resolution['sing'], bins=2000)
+        plt.subplot(212, sharex=ax0)
+        plt.gca().set_title('nosing|<0.3s %d  of %d' % (nosing_num, nosing_total))
+        plt.axis([0, 0.5, 0, 100])
+        plt.hist(sing_nosing_resolution['nosing'], bins=2000)
+        plt.subplots_adjust(hspace=1.0)
+        plt.savefig('svg_plots/%s_sing_nosing_time_dur.svg' % data_dir.split('/')[-1], format='svg')
+        return sing_nosing_resolution
+    
+    # ======================================================================================================================
+    # Perform SVS preprocessing on the dataset
+    def svs_split(self, data_dir):
+
+        # Find the dataset OS path
+        for root, dirs, names in os.walk(data_dir):
+
+            # Traverse the dataset songs
+            for name in names:
+
+                # Perform SVS on the songs in .wav format
+                if '.wav' in name:
+                    wav_path = os.path.join(root, name)
+                    split_vocal(wav_path)
         return 0
 
 # ===================================================================================================================================
@@ -233,9 +335,34 @@ class Pre_procession_wav:
                     song.export(wav_path, 'wav')
     
     # ======================================================================================================================
+    
+    # SVS Preprocessing
+    def svs_get_vocal(self):
 
+         # Find the dataset OS path
+        for root, dirs, names in os.walk(self.dir_path):
+
+            # Traverse the dataset songs
+            for name in names:
+
+                # Get song path
+                wav_path = os.path.join(root, name)
+
+                # Check if SVS has not been done into the song
+                if '.wav' in name and '.unet.Vocal.wav' not in name:
+
+                    # Get SVS file path
+                    vocal_path = wav_path.replace('.wav', '.unet.Vocal.wav')
+                    
+                    # Perform SVS on the song
+                    if not os.path.isfile(vocal_path):
+                        split_vocal(wav_path)
+
+                    # os.remove(wav_path)
+
+    # ======================================================================================================================
     # Feature extraction
-    def extract_feat_from_wav(self, win_size, hop_size):
+    def extract_feat_from_wav(self, win_size, hop_size, vocal_only):
 
         # Find the dataset OS path
         for root, dirs, names in os.walk(self.dir_path):
@@ -251,6 +378,11 @@ class Pre_procession_wav:
 
                 # Get the song OS path
                 wav_path = os.path.join(root, name)
+                
+                # Skip SVS Vocal Files
+                if vocal_only:
+                    if '.unet.Vocal.' not in wav_path:
+                        continue
 
                 # Split the path
                 wav_ext_str = '.' + wav_path.split('.')[-1]
@@ -281,20 +413,30 @@ class Pre_procession_wav:
                 elif 'audio\\valid' in wav_path:
                     lab_path = wav_path.replace('audio', 'labels').replace('\\valid', '').replace(wav_ext_str, '.lab')
 
+                # Change the song format of SVS files to .lab
+                if 'unet.Vocal' in lab_path:
+                    lab_path = lab_path.replace('.unet.Vocal', '')
+                if '_MIX.lab' in lab_path:
+                    lab_path = lab_path.replace('_MIX.lab', '.lab')
+
                 # Read .lab files
-                lab_contend = open(lab_path)
-                lab_contend_lines = lab_contend.readlines()
-                lab_contend.close()
+                lab_file = open(lab_path)
+                labels = lab_file.readlines()
+                lab_file.close()
 
                 # Extract the label values (start time, end time, sing/nosing label)
-                for line in lab_contend_lines:
-                    line_item_list = line.split(' ')
-                    start_time = float(line_item_list[0])
-                    end_time = float(line_item_list[1])
-                    lab_sing_nosing = line_item_list[2][:-1]
+                for line in labels:
+
+                    # Store the label values in a list
+                    start_end = line.split(' ')
+
+                    # Start time, end time, tag value
+                    start = float(start_end[0])
+                    end = float(start_end[1])
+                    tag = start_end[2][:-1]
 
                     # Get the part signal from the label time range
-                    part_signal = signal[int(start_time * samplerate):int(end_time * samplerate)]
+                    part_signal = signal[int(start * samplerate):int(end * samplerate)]
 
                     # Declare the Feature AudioFeat class instance 
                     audio_feater = AudioFeat(win_size_n=win_size_num, hop_size_n=hop_size_num)
@@ -309,7 +451,7 @@ class Pre_procession_wav:
                     f = lambda x: 1 if x == 'sing' else 0
 
                     # Add the label to the label list
-                    LabelY.extend([f(lab_sing_nosing)] * len(part_signal_feat))
+                    LabelY.extend([f(tag)] * len(part_signal_feat))
                 
                 # Dump the extracted features and labels into the .joblib file
                 joblib.dump({'data': DataX, 'lable': LabelY}, feat_path, compress=3)
@@ -317,21 +459,24 @@ class Pre_procession_wav:
 # ======================================================================================================================
 
 if __name__ == '__main__':
-    action = '12'
+    action = '2'
 
     # Extract features and labels into .joblib file
     if '1' in action: 
-        for dataset in ['Jamendo', 'Electrobyte']: # ['MIR1Ks', 'Jamendo', 'Electrobyte']
+        for dataset in ['Jamendo', 'Electrobyte', 'Fusion']: # ['Jamendo', 'Electrobyte']
             dataset_dir_path = '.\Datasets\%s' % dataset
             preprocess_wav = Pre_procession_wav(dataset_dir_path)
-            preprocess_wav.format_wav()
-            preprocess_wav.extract_feat_from_wav(1, 0.04)
+            # preprocess_wav.format_wav()
+            # preprocess_wav.svs_get_vocal();
+            preprocess_wav.extract_feat_from_wav(1, 0.04, False) # False
 
     # Convert .joblib to .h5 file
     if '2' in action:  
-        for data_dir in ['Jamendo', 'Electrobyte']: # ['MIR1Ks', 'Jamendo', 'Electrobyte']
+        for data_dir in ['Jamendo', 'Electrobyte', 'Fusion']: # ['Jamendo', 'Electrobyte']
             for ext_str in [1]:  # , 0.10, 0.20, 0.30, 0.50, 0.80, 1, 2]:
                 data_set_dir = '.\Datasets\%s' % data_dir
                 data_ext_str = '_%.2f.joblib' % ext_str
-                dataset_saver = AudioPreprocess()
-                dataset_saver.write_h5file(data_set_dir, data_ext_str)
+                for vocal_only in [True, False]:
+                    dataset_saver = AudioPreprocess()
+                    dataset_saver.write_h5file(data_set_dir, data_ext_str, vocal_only)
+    

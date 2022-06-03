@@ -2,7 +2,6 @@ import numpy
 import librosa
 from librosa import util
 from librosa.feature import mfcc, chroma_stft, zero_crossing_rate, rms, spectral_centroid, spectral_rolloff, poly_features, spectral_contrast, spectral_bandwidth, spectral_flatness, delta
-# from Extraction.librosa_lpc import lpc
 from Extraction.rasta_plp import rastaplp
 
 
