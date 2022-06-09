@@ -1,11 +1,11 @@
 # SVD-LRCN
-Evaluating the Robustness of Singing Voice Detection in Electronic Music with a Long-Term Recurrent Convolutional Network
+Evaluating Singing Voice Detection in Electronic Music with a Long-Term Recurrent Convolutional Network
 
 ## Content description
 - Config.py = Feature vector and LRCN parameter settings
 - Api.py = Test the feature extraction and label identification
 - Feature.py = Perform the feature extraction
-- Preprocessing.py = Dataset preprocessing (Audio formatting, Singing Voice Separation, Feature extraction, data storage and generation)
+- Preprocessing.py = Dataset preprocessing (Audio formatting, Singing Voice Separation, Feature extraction, Data generation)
 - LRCN.py = LRCN model implementation and experimentation
 - SVD.py = Main program to use the LRCN
 - Evaluation.py = Evaluation metrics calculation
