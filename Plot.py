@@ -76,7 +76,7 @@ if __name__ == '__main__':
 
     # Plot each model trained
     for item in os.listdir(csv_dir):
-        # if 'results_compare_features_by_g' in item:
+
         # Get CSV path
         csv_path = os.path.join(csv_dir, item)
 

@@ -459,20 +459,20 @@ class Pre_procession_wav:
 # ======================================================================================================================
 
 if __name__ == '__main__':
-    action = '2'
+    action = '12'
 
     # Extract features and labels into .joblib file
     if '1' in action: 
-        for dataset in ['Jamendo', 'Electrobyte', 'Fusion']: # ['Jamendo', 'Electrobyte']
+        for dataset in ['Jamendo', 'Electrobyte']:
             dataset_dir_path = '.\Datasets\%s' % dataset
             preprocess_wav = Pre_procession_wav(dataset_dir_path)
-            # preprocess_wav.format_wav()
-            # preprocess_wav.svs_get_vocal();
+            preprocess_wav.format_wav()
+            preprocess_wav.svs_get_vocal();
             preprocess_wav.extract_feat_from_wav(1, 0.04, False) # False
 
     # Convert .joblib to .h5 file
     if '2' in action:  
-        for data_dir in ['Jamendo', 'Electrobyte', 'Fusion']: # ['Jamendo', 'Electrobyte']
+        for data_dir in ['Jamendo', 'Electrobyte']: 
             for ext_str in [1]:  # , 0.10, 0.20, 0.30, 0.50, 0.80, 1, 2]:
                 data_set_dir = '.\Datasets\%s' % data_dir
                 data_ext_str = '_%.2f.joblib' % ext_str

@@ -115,14 +115,14 @@ class LRCN_Model:
             checkpoint = ModelCheckpoint('models/weights_best.{epoch:02d}-{loss:.2f}.hdf5', monitor='loss', verbose=1, save_best_only=True, mode='min')
 
             # Stop the training when the model stops improving
-            # early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=3, verbose=0, mode='auto', )  # baseline=None, restore_best_weights=True)
+            early_stop = EarlyStopping(monitor='val_loss', min_delta=0, patience=3, verbose=0, mode='auto', )  # baseline=None, restore_best_weights=True)
 
-            # Fit trainging data into model history
+            # Fit training data into model history
             history = model.fit(train_X, train_Y,
-                                epochs=1000, verbose=VERBOSE,  # 10000
+                                epochs=10000, verbose=VERBOSE,  # 10000
                                 shuffle=True,
                                 validation_data=(valid_X, valid_Y),
-                                callbacks=[checkpoint, TensorBoard(log_dir='logs'), ]) #early_stop
+                                callbacks=[checkpoint, early_stop, TensorBoard(log_dir='logs'), ]) #early_stop
 
             # Plot Model Accuracy
             plt.figure()
@@ -188,7 +188,7 @@ def compare_features(dataset_h5_path):
         writer = csv.writer(res_csv)
 
         # Write the metrics in the CSV file
-        writer.writerow([feature, accuracy, precision, recall, f1measure])
+        writer.writerow([dataset_h5_path, feature, accuracy, precision, recall, f1measure])
 
         # Close the CSV file
         res_csv.close()
@@ -296,7 +296,7 @@ def best_features_window_size(dataset_dir):
                 print('Window Size = \t%s\t%.3f\t%.3f\t%.3f\t%.3f' % (h5_file_item.split('_')[-2], accuracy, precision, recall, f1measure))
             
             # Write the metrics in the CSV file
-            writer.writerow([dataset_h5_path,h5_file_item.split('_')[-2], accuracy, precision, recall, f1measure])
+            writer.writerow([dataset_h5_path, h5_file_item.split('_')[-2], accuracy, precision, recall, f1measure])
 
     # Close the CSV
     res_csv.close()
@@ -306,6 +306,7 @@ def best_features_window_size(dataset_dir):
 
 # ========================================================================================================================================
 
+# Compare results between using or not using SVS preprocessing
 def LRCN_Standard(dataset_h5_path):
 
     # Open a CSV file
@@ -333,6 +334,7 @@ def LRCN_Standard(dataset_h5_path):
 
 # ==========================================================================================================================
 
+# Compare results between different frame window sizes
 def LRCN_Window_Size(dataset_h5_path, st_size):
 
     # Open a CSV file
@@ -360,6 +362,7 @@ def LRCN_Window_Size(dataset_h5_path, st_size):
 
 # ==========================================================================================================================
 
+# Compare final resulta across datasets
 def LRCN_Datasets(dataset_h5_path):
 
     # Open a CSV file
